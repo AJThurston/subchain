@@ -1,0 +1,59 @@
+# TIL: dplyr subchain
+Today I learned (TIL) in R stats you can make subchains for `dplyr` syntax to use elsewhere in your code.  Take this vanilla `dplyr` example below.
+
+```{r vanilla, echo=TRUE, message=FALSE, warning=FALSE}
+library(dplyr)
+starwars %>%
+  group_by(species) %>%
+  summarise(n = n(), mass = mean(mass, na.rm = TRUE)) %>%
+  filter(n > 1)
+```
+
+Suppose I want to pull out a particular piece of this `dplyr` chain.  I can save it with the `.` notation and reuse it elswhere.
+
+``` {r subchain}
+summ <- . %>% summarise(n = n(), mass = mean(mass, na.rm = TRUE))
+
+starwars %>%
+  group_by(species) %>%
+  summ %>%
+  filter(n > 1)
+```
+
+This is is very useful for functions where you can first configure a subchain based on the functions parameters and then call it elsewhere throughout your function.  You can see where I have done so [in my `svytldr` function here](https://github.com/AJThurston/svytldr/blob/main/R/svytldr.R) in lines 36 through 60 to configure a svy dsgn object based on the presence of `ids`, `strata`, and `weights` parameters. Hat tip to [this stackoverflow answer](https://stackoverflow.com/questions/65559994/how-to-reuse-parts-of-long-chain-of-pipe-operators-in-r) that finally answered this question for me.
+
+My implementation is below and linked above:
+```{r svytldr, echo=TRUE, message=FALSE, warning=FALSE, eval = FALSE}
+...
+  if (!missing(ids) && !missing(weights) && !missing(strata)){
+    dsgn <- . %>% as_survey_design(ids = ids, weights = weights, strata = strata)
+  }
+  if (!missing(ids) && missing(weights) && !missing(strata)){
+    dsgn <- . %>% as_survey_design(ids = ids, strata = strata)
+    }
+  if (!missing(ids) && !missing(weights) && missing(strata)){
+    dsgn <- . %>% as_survey_design(ids = ids, weights = weights)
+  }
+  if (!missing(ids) && missing(weights) && missing(strata)){
+    dsgn <- . %>% as_survey_design(ids = ids)
+  }
+  if (missing(ids) && !missing(weights) && !missing(strata)){
+    dsgn <- . %>% as_survey_design(weights = weights, strata = strata)
+  }
+  if (missing(ids) && missing(weights) && !missing(strata)){
+    dsgn <- . %>% as_survey_design(strata = strata)
+  }
+  if (missing(ids) && !missing(weights) && missing(strata)){
+    dsgn <- . %>% as_survey_design(weights = weights)
+  }
+  if (missing(ids) && missing(weights) && missing(strata)){
+    dsgn <- . %>% as_survey_design()
+  }
+... 
+res <- df %>%
+  dsgn %>%
+  group_by(as.factor("overall"), df[, i], .drop = FALSE) %>%
+  summarize(m = survey_mean(), n = unweighted(n()))
+```
+
+
